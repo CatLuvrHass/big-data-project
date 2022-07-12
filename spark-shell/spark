@@ -1,0 +1,50 @@
+spark commands:
+it goes without sayin you need to set up the spark docker container and enter the shell to run this as per labs
+for df:
+1. val reviewsDf = spark.read.format("com.databricks.spark.csv").option("header","true").option("delimiter", " ").option("inferSchema","true").load("/home/spark/spark.csv")
+
+for RDD:
+1.val reviewsRDD = sc.textFile("/home/spark/spark.csv")
+
+part 2
+
+for DF:
+reviewsDf.show()
+
+for most reviews:
+
+reviewsDf.select("Restaurant").where(reviewsDf("`No.Reviews`") === reviewsDf.agg(max("`No.Reviews`")).first()(0)).show()
+
+part 3
+longest restaurant
+val longRest = spark.sql("Select Restaurant from reviewsDf WHERE length(Restaurant) = (SELECT max(length(Restaurant)) FROM reviewsDf)").show()
+
+part 4
+val regionRev = reviewsDf.groupBy('Region).sum("`No.Reviews`").show()
+
+part 5
+
+new approach:
+
+in bash we create a csv file that only has the fifth column so we run:
+- cut -d, -f5 spark.csv > fifthcol.csv
+- /spark/bin/spark-shell
+
+in spark: 
+- val sparkdf = spark.read.text("/home/spark/fifthcol.csv").map( row => row.getString(0).split(""" """))
+- import org.apache.spark.ml.feature.StopWordsRemover
+- val stopremover = new StopWordsRemover().setInputCol("value").setOutputCol("removed").setStopWords(Array("the", "The", "a", "A", "of", "Of"))
+- val newsparkdf = stopremover.transform(sparkdf)
+- CHECK IF IT WORKED IMPORTANT: newsparkdf.show() -> look at "removed" column
+- newsparkdf.select("removed").map(row => row.getSeq[String](0).mkString(" ")).write.text("/home/spark/clean_fifthcol")
+
+back in bash:
+make a copy of clean_fifthCol , name it something like clean_stop.csv
+-  /spark/bin/spark-shell
+
+
+val spark_rdd = sc.textFile("/home/spark/clean_stop.csv")
+sparkrdd.flatMap(line => line.split(",")(0).split(" ")).map(word => (word, 1)).reduceByKey(  + _).sortBy(T => T._2,false).first()
+
+- output is:
+ (String, Int) = (and,379)
